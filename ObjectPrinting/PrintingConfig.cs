@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
@@ -12,6 +13,45 @@ public class PrintingConfig<TOwner>
     private readonly HashSet<MemberInfo> _excludedMembers = [];
     private readonly Dictionary<Type, Func<object, string>> _typeSerializers = [];
     private readonly Dictionary<MemberInfo, Func<object, string>> _memberSerializers = [];
+    private readonly Dictionary<Type, CultureInfo> _typeCultures = [];
+    private readonly Dictionary<MemberInfo, int> _memberStringTrims = [];
+    private readonly Dictionary<Type, int> _typeStringTrims = [];
+
+    internal void SetTypeSerializer(Type type, Func<object, string> serializer)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(serializer);
+
+        _typeSerializers[type] = serializer;
+    }
+
+    internal void SetMemberSerializer(MemberInfo member, Func<object, string> serializer)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        ArgumentNullException.ThrowIfNull(serializer);
+
+        _memberSerializers[member] = serializer;
+    }
+
+    internal void SetTypeCulture(Type type, CultureInfo culture)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(culture);
+
+        _typeCultures[type] = culture;
+    }
+
+    internal void SetMemberStringTrim(MemberInfo member, int maxLength)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        _memberStringTrims[member] = maxLength;
+    }
+
+    internal void SetTypeStringTrim(Type type, int maxLength)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        _typeStringTrims[type] = maxLength;
+    }
 
     public PrintingConfig<TOwner> Excluding<TPropType>()
     {
@@ -32,7 +72,7 @@ public class PrintingConfig<TOwner>
 
     public PropertyPrintingConfig<TOwner, TProp> Printing<TProp>()
     {
-        return new PropertyPrintingConfig<TOwner, TProp>(this, null);
+        return new PropertyPrintingConfig<TOwner, TProp>(this, typeof(TProp), null);
     }
 
     public PropertyPrintingConfig<TOwner, TProp> Printing<TProp>(Expression<Func<TOwner, TProp>> memberSelector)
@@ -42,56 +82,53 @@ public class PrintingConfig<TOwner>
         if (memberSelector.Body is not MemberExpression expression)
             throw new ArgumentException(null, nameof(memberSelector));
 
-        return new PropertyPrintingConfig<TOwner, TProp>(this, expression.Member);
+        return new PropertyPrintingConfig<TOwner, TProp>(this, typeof(TProp), expression.Member);
     }
 
     public string PrintToString(TOwner obj)
     {
-        var visited = new HashSet<object>();
-        return PrintToString(obj, 0, visited, null);
+        var visited = new HashSet<object>(new ReferenceEqualityComparer());
+        return PrintToString(obj!, 0, visited, null!);
     }
 
-    private string PrintToString(object obj, int nestingLevel, HashSet<object> visited, MemberInfo? member)
+    private string PrintToString(object obj, int nestingLevel, HashSet<object> visited, MemberInfo member)
     {
         if (obj == null)
             return "null" + Environment.NewLine;
 
         var type = obj.GetType();
 
-        if (!IsFinalType(type))
-        {
-            if (visited.Contains(type))
-                return "Cycle ref" + Environment.NewLine;
-
-            visited.Add(obj);
-        }
-
-        if (member != null && _memberSerializers.TryGetValue(type, out var memberSerializer))
+        if (member != null && _memberSerializers.TryGetValue(member, out var memberSerializer))
             return memberSerializer(obj) + Environment.NewLine;
 
         if (_typeSerializers.TryGetValue(type, out var typeSerializer))
             return typeSerializer(obj) + Environment.NewLine;
 
         if (IsFinalType(type))
-            return obj + Environment.NewLine;
+        {
+            var text = FormatFinalValue(obj, type, member);
+            return text + Environment.NewLine;
+        }
 
-        var identation = new string('\t', nestingLevel + 1);
+        if (!visited.Add(obj))
+            return "cyclic reference" + Environment.NewLine;
+
+        var indent = new string('\t', nestingLevel + 1);
         var sb = new StringBuilder();
 
         sb.AppendLine(type.Name);
-
-        foreach (var propertyInfo in type.GetProperties())
+        
+        foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
-            if (ShouldSkipMember(propertyInfo))
+            if (ShouldSkipMember(property))
                 continue;
 
-            var val = propertyInfo.GetValue(obj);
-            sb.Append(
-                identation 
-                + propertyInfo.Name 
-                + " = " 
-                + PrintToString(val, nestingLevel + 1, visited, propertyInfo)
-                );
+            var value = property.GetValue(obj);
+
+            sb.Append(indent)
+              .Append(property.Name)
+              .Append(" = ")
+              .Append(PrintToString(value, nestingLevel + 1, visited, property));
         }
 
         return sb.ToString();
@@ -107,6 +144,38 @@ public class PrintingConfig<TOwner>
             || type == typeof(Guid);
     }
 
+    private string FormatFinalValue(object obj, Type type, MemberInfo member)
+    {
+        string result;
+
+        if (obj is IFormattable formattable && _typeCultures.TryGetValue(type, out var culture))
+            result = formattable.ToString(null, culture) ?? string.Empty;
+        else
+            result = obj.ToString() ?? string.Empty;
+
+        if (type == typeof(string))
+        {
+            var needsTrim = false;
+            var maxLength = 0;
+
+            if (member != null && _memberStringTrims.TryGetValue(member, out var memberMax))
+            {
+                needsTrim = result.Length > memberMax;
+                maxLength = memberMax;
+            }
+            else if (_typeStringTrims.TryGetValue(type, out var typeMax))
+            {
+                needsTrim = result.Length > typeMax;
+                maxLength = typeMax;
+            }
+
+            if (needsTrim)
+                result = result[..maxLength];
+        }
+
+        return result;
+    }
+
     private bool ShouldSkipMember(MemberInfo member)
     {
         if (_excludedMembers.Contains(member))
@@ -119,12 +188,6 @@ public class PrintingConfig<TOwner>
             _ => null
         };
 
-        if (type == null)
-            return false;
-
-        if (_excludedTypes.Contains(type))
-            return true;
-
-        return false;
+        return type != null && _excludedTypes.Contains(type);
     }
 }
