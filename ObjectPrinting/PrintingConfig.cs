@@ -118,20 +118,39 @@ public class PrintingConfig<TOwner>
 
         sb.AppendLine(type.Name);
         
-        foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        foreach (var memberInfo in GetSerializableMembers(type))
         {
-            if (ShouldSkipMember(property))
+            if (ShouldSkipMember(memberInfo))
                 continue;
 
-            var value = property.GetValue(obj);
+            var value = GetMemberValue(obj, memberInfo);
 
             sb.Append(indent)
-              .Append(property.Name)
+              .Append(memberInfo.Name)
               .Append(" = ")
-              .Append(PrintToString(value, nestingLevel + 1, visited, property));
+              .Append(PrintToString(value!, nestingLevel + 1, visited, memberInfo));
         }
 
         return sb.ToString();
+    }
+
+    private static IEnumerable<MemberInfo> GetSerializableMembers(Type type)
+    {
+        foreach (var member in type.GetFields())
+            yield return member;
+
+        foreach (var member in type.GetProperties())
+            yield return member;
+    }
+
+    private static object? GetMemberValue(object obj, MemberInfo member)
+    {
+        return member switch
+        {
+            FieldInfo field => field.GetValue(obj),
+            PropertyInfo property => property.GetValue(obj),
+            _ => null
+        };
     }
 
     private static bool IsFinalType(Type type)
