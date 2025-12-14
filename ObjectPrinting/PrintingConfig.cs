@@ -14,6 +14,7 @@ public class PrintingConfig<TOwner>
     private readonly Dictionary<Type, Func<object, string>> _typeSerializers = [];
     private readonly Dictionary<MemberInfo, Func<object, string>> _memberSerializers = [];
     private readonly Dictionary<Type, CultureInfo> _typeCultures = [];
+    private readonly Dictionary<MemberInfo, CultureInfo> _memberCultures = [];
     private readonly Dictionary<MemberInfo, int> _memberStringTrims = [];
     private readonly Dictionary<Type, int> _typeStringTrims = [];
 
@@ -39,6 +40,14 @@ public class PrintingConfig<TOwner>
         ArgumentNullException.ThrowIfNull(culture);
 
         _typeCultures[type] = culture;
+    }
+
+    internal void SetMemberCulture(MemberInfo member, CultureInfo culture)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        ArgumentNullException.ThrowIfNull(culture);
+
+        _memberCultures[member] = culture;
     }
 
     internal void SetMemberStringTrim(MemberInfo member, int maxLength)
@@ -88,13 +97,13 @@ public class PrintingConfig<TOwner>
     public string PrintToString(TOwner obj)
     {
         var visited = new HashSet<object>(new ReferenceEqualityComparer());
-        return PrintToString(obj!, 0, visited, null!);
+        return PrintToString(obj, 0, visited, member: null, expectedType: typeof(TOwner));
     }
 
-    private string PrintToString(object obj, int nestingLevel, HashSet<object> visited, MemberInfo member)
+    private string PrintToString(object? obj, int nestingLevel, HashSet<object> visited, MemberInfo? member, Type expectedType)
     {
         if (obj == null)
-            return "null" + Environment.NewLine;
+            return $"null ({expectedType.Name}){Environment.NewLine}";
 
         var type = obj.GetType();
 
@@ -117,21 +126,32 @@ public class PrintingConfig<TOwner>
         var sb = new StringBuilder();
 
         sb.AppendLine(type.Name);
-        
+
         foreach (var memberInfo in GetSerializableMembers(type))
         {
             if (ShouldSkipMember(memberInfo))
                 continue;
 
             var value = GetMemberValue(obj, memberInfo);
+            var memberType = GetMemberType(memberInfo);
 
             sb.Append(indent)
               .Append(memberInfo.Name)
               .Append(" = ")
-              .Append(PrintToString(value!, nestingLevel + 1, visited, memberInfo));
+              .Append(PrintToString(value, nestingLevel + 1, visited, memberInfo, memberType));
         }
 
         return sb.ToString();
+    }
+
+    private static Type GetMemberType(MemberInfo member)
+    {
+        return member switch
+        {
+            FieldInfo f => f.FieldType,
+            PropertyInfo p => p.PropertyType,
+            _ => typeof(object)
+        };
     }
 
     private static IEnumerable<MemberInfo> GetSerializableMembers(Type type)
@@ -163,11 +183,17 @@ public class PrintingConfig<TOwner>
             || type == typeof(Guid);
     }
 
-    private string FormatFinalValue(object obj, Type type, MemberInfo member)
+    private string FormatFinalValue(object obj, Type type, MemberInfo? member)
     {
         string result;
 
-        if (obj is IFormattable formattable && _typeCultures.TryGetValue(type, out var culture))
+        CultureInfo? culture = null;
+        if (member != null && _memberCultures.TryGetValue(member, out var memberCulture))
+            culture = memberCulture;
+        else if (_typeCultures.TryGetValue(type, out var typeCulture))
+            culture = typeCulture;
+
+        if (obj is IFormattable formattable && culture != null)
             result = formattable.ToString(null, culture) ?? string.Empty;
         else
             result = obj.ToString() ?? string.Empty;

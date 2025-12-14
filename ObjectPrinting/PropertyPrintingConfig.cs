@@ -28,7 +28,11 @@ public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> printi
     {
         ArgumentNullException.ThrowIfNull(culture);
 
-        _printingConfig.SetTypeCulture(_targetType, culture);
+        if (_memberInfo != null)
+            _printingConfig.SetMemberCulture(_memberInfo, culture);
+        else
+            _printingConfig.SetTypeCulture(_targetType, culture);
+
         return _printingConfig;
     }
 
