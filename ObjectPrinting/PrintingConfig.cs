@@ -73,7 +73,7 @@ public class PrintingConfig<TOwner>
         ArgumentNullException.ThrowIfNull(memberSelector);
 
         if (memberSelector.Body is not MemberExpression expression)
-            throw new ArgumentException(null, nameof(memberSelector));
+            throw new ArgumentException("Выражение должно указывать на поле или свойство.", nameof(memberSelector));
 
         _excludedMembers.Add(expression.Member);
         return this;
@@ -89,7 +89,7 @@ public class PrintingConfig<TOwner>
         ArgumentNullException.ThrowIfNull(memberSelector);
 
         if (memberSelector.Body is not MemberExpression expression)
-            throw new ArgumentException(null, nameof(memberSelector));
+            throw new ArgumentException("Выражение должно указывать на поле или свойство.", nameof(memberSelector));
 
         return new PropertyPrintingConfig<TOwner, TProp>(this, typeof(TProp), expression.Member);
     }
