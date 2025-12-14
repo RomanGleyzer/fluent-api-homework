@@ -3,11 +3,11 @@ using System.Globalization;
 
 namespace ObjectPrinting;
 
-public interface IPropertyPrintingConfig<TOwner, TProp>
+public interface IPropertyPrintingConfig<TOwner, TProp> : IPrintingConfig<TOwner>
 {
-    IPrintingConfig<TOwner> Using(Func<TProp, string> serializer);
+    IPropertyPrintingConfig<TOwner, TProp> Using(Func<TProp, string> serializer);
 
-    IPrintingConfig<TOwner> Using(CultureInfo culture);
+    IPropertyPrintingConfig<TOwner, TProp> Using(CultureInfo culture);
 
-    IPrintingConfig<TOwner> TrimmedToLength(int maxLength);
+    IPropertyPrintingConfig<TOwner, TProp> TrimmedToLength(int maxLength);
 }

@@ -1,48 +1,74 @@
 ﻿using System;
 using System.Globalization;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace ObjectPrinting;
 
-public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> printingConfig, Type targetType, MemberInfo memberInfo) : IPropertyPrintingConfig<TOwner, TProp>
+public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> parent, Type targetType, MemberInfo memberInfo) : IPropertyPrintingConfig<TOwner, TProp>
 {
-    private readonly PrintingConfig<TOwner> _printingConfig = printingConfig;
+    private readonly PrintingConfig<TOwner> _parent = parent;
     private readonly Type _targetType = targetType;
     private readonly MemberInfo? _memberInfo = memberInfo;
 
-    public IPrintingConfig<TOwner> Using(Func<TProp, string> serializer)
+    public IPropertyPrintingConfig<TOwner, TProp> Using(Func<TProp, string> serializer)
     {
         ArgumentNullException.ThrowIfNull(serializer);
 
         string boxed(object o) => serializer((TProp)o);
 
         if (_memberInfo != null)
-            _printingConfig.SetMemberSerializer(_memberInfo, boxed);
+            _parent.SetMemberSerializer(_memberInfo, boxed);
         else
-            _printingConfig.SetTypeSerializer(_targetType, boxed);
+            _parent.SetTypeSerializer(_targetType, boxed);
 
-        return _printingConfig;
+        return this;
     }
 
-    public IPrintingConfig<TOwner> Using(CultureInfo culture)
+    public IPropertyPrintingConfig<TOwner, TProp> Using(CultureInfo culture)
     {
         ArgumentNullException.ThrowIfNull(culture);
 
         if (_memberInfo != null)
-            _printingConfig.SetMemberCulture(_memberInfo, culture);
+            _parent.SetMemberCulture(_memberInfo, culture);
         else
-            _printingConfig.SetTypeCulture(_targetType, culture);
+            _parent.SetTypeCulture(_targetType, culture);
 
-        return _printingConfig;
+        return this;
     }
 
-    public IPrintingConfig<TOwner> TrimmedToLength(int maxLength)
+    public IPropertyPrintingConfig<TOwner, TProp> TrimmedToLength(int maxLength)
     {
         if (_memberInfo != null)
-            _printingConfig.SetMemberStringTrim(_memberInfo, maxLength);
+            _parent.SetMemberStringTrim(_memberInfo, maxLength);
         else
-            _printingConfig.SetTypeStringTrim(_targetType, maxLength);
+            _parent.SetTypeStringTrim(_targetType, maxLength);
 
-        return _printingConfig;
+        return this;
+    }
+
+    public IPrintingConfig<TOwner> Excluding<TPropType>()
+    {
+        return _parent.Excluding<TPropType>();
+    }
+
+    public IPrintingConfig<TOwner> Excluding<TAny>(Expression<Func<TOwner, TAny>> memberSelector)
+    {
+        return _parent.Excluding(memberSelector);
+    }
+
+    public IPropertyPrintingConfig<TOwner, TAny> Printing<TAny>()
+    {
+        return _parent.Printing<TAny>();
+    }
+
+    public IPropertyPrintingConfig<TOwner, TAny> Printing<TAny>(Expression<Func<TOwner, TAny>> memberSelector)
+    {
+        return _parent.Printing(memberSelector);
+    }
+
+    public string PrintToString(TOwner obj)
+    {
+        return _parent.PrintToString(obj);
     }
 }
