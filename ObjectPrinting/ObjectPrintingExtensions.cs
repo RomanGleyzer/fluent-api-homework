@@ -9,7 +9,7 @@ public static class ObjectPrintingExtensions
         return ObjectPrinter.For<TOwner>().PrintToString(obj);
     }
 
-    public static string PrintToString<TOwner>(this TOwner obj, Func<PrintingConfig<TOwner>, PrintingConfig<TOwner>> config)
+    public static string PrintToString<TOwner>(this TOwner obj, Func<IPrintingConfig<TOwner>, IPrintingConfig<TOwner>> config)
     {
         return config(ObjectPrinter.For<TOwner>()).PrintToString(obj);
     }

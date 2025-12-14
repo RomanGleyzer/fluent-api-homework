@@ -7,7 +7,7 @@ using System.Text;
 
 namespace ObjectPrinting;
 
-public class PrintingConfig<TOwner>
+public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
 {
     private readonly HashSet<Type> _excludedTypes = [];
     private readonly HashSet<MemberInfo> _excludedMembers = [];
@@ -62,13 +62,13 @@ public class PrintingConfig<TOwner>
         _typeStringTrims[type] = maxLength;
     }
 
-    public PrintingConfig<TOwner> Excluding<TPropType>()
+    public IPrintingConfig<TOwner> Excluding<TPropType>()
     {
         _excludedTypes.Add(typeof(TPropType));
         return this;
     }
 
-    public PrintingConfig<TOwner> Excluding<TProp>(Expression<Func<TOwner, TProp>> memberSelector)
+    public IPrintingConfig<TOwner> Excluding<TProp>(Expression<Func<TOwner, TProp>> memberSelector)
     {
         ArgumentNullException.ThrowIfNull(memberSelector);
 
@@ -79,12 +79,12 @@ public class PrintingConfig<TOwner>
         return this;
     }
 
-    public PropertyPrintingConfig<TOwner, TProp> Printing<TProp>()
+    public IPropertyPrintingConfig<TOwner, TProp> Printing<TProp>()
     {
-        return new PropertyPrintingConfig<TOwner, TProp>(this, typeof(TProp), null);
+        return new PropertyPrintingConfig<TOwner, TProp>(this, typeof(TProp), null!);
     }
 
-    public PropertyPrintingConfig<TOwner, TProp> Printing<TProp>(Expression<Func<TOwner, TProp>> memberSelector)
+    public IPropertyPrintingConfig<TOwner, TProp> Printing<TProp>(Expression<Func<TOwner, TProp>> memberSelector)
     {
         ArgumentNullException.ThrowIfNull(memberSelector);
 

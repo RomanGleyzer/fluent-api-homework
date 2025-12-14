@@ -1,8 +1,8 @@
-namespace ObjectPrinting;
+﻿namespace ObjectPrinting;
 
-public class ObjectPrinter
+public static class ObjectPrinter
 {
-    public static PrintingConfig<T> For<T>()
+    public static IPrintingConfig<T> For<T>()
     {
         return new PrintingConfig<T>();
     }

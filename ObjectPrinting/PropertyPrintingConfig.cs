@@ -4,13 +4,13 @@ using System.Reflection;
 
 namespace ObjectPrinting;
 
-public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> printingConfig, Type targetType, MemberInfo? memberInfo)
+public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> printingConfig, Type targetType, MemberInfo memberInfo) : IPropertyPrintingConfig<TOwner, TProp>
 {
     private readonly PrintingConfig<TOwner> _printingConfig = printingConfig;
     private readonly Type _targetType = targetType;
     private readonly MemberInfo? _memberInfo = memberInfo;
 
-    public PrintingConfig<TOwner> Using(Func<TProp, string> serializer)
+    public IPrintingConfig<TOwner> Using(Func<TProp, string> serializer)
     {
         ArgumentNullException.ThrowIfNull(serializer);
 
@@ -24,7 +24,7 @@ public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> printi
         return _printingConfig;
     }
 
-    public PrintingConfig<TOwner> Using(CultureInfo culture)
+    public IPrintingConfig<TOwner> Using(CultureInfo culture)
     {
         ArgumentNullException.ThrowIfNull(culture);
 
@@ -36,7 +36,7 @@ public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> printi
         return _printingConfig;
     }
 
-    public PrintingConfig<TOwner> TrimmedToLength(int maxLength)
+    public IPrintingConfig<TOwner> TrimmedToLength(int maxLength)
     {
         if (_memberInfo != null)
             _printingConfig.SetMemberStringTrim(_memberInfo, maxLength);

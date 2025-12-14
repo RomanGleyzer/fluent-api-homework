@@ -11,7 +11,7 @@ public class ObjectPrinterAcceptanceTests
     private const int TrimmedLength = 2;
 
     private Person _person = null!;
-    private PrintingConfig<Person> _printer = null!;
+    private IPrintingConfig<Person> _printer = null!;
 
     [SetUp]
     public void SetUp()
