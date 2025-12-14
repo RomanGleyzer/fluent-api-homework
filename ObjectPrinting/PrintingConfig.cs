@@ -156,11 +156,19 @@ public class PrintingConfig<TOwner>
 
     private static IEnumerable<MemberInfo> GetSerializableMembers(Type type)
     {
-        foreach (var member in type.GetFields())
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+
+        foreach (var member in type.GetFields(flags))
             yield return member;
 
-        foreach (var member in type.GetProperties())
+        foreach (var member in type.GetProperties(flags))
+        {
+            var getter = member.GetMethod;
+            if (getter is null || !getter.IsPublic)
+                continue;
+
             yield return member;
+        }
     }
 
     private static object? GetMemberValue(object obj, MemberInfo member)
