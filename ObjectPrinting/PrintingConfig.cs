@@ -97,35 +97,58 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
     public string PrintToString(TOwner obj)
     {
         var visited = new HashSet<object>(new ReferenceEqualityComparer());
-        return PrintToString(obj, 0, visited, member: null, expectedType: typeof(TOwner));
+        var sb = new StringBuilder();
+
+        AppendTo(sb, obj!, 0, visited, null!, typeof(TOwner));
+
+        return sb.ToString();
     }
 
-    private string PrintToString(object? obj, int nestingLevel, HashSet<object> visited, MemberInfo? member, Type expectedType)
+    private void AppendTo(StringBuilder sb, object obj, int nestingLevel, HashSet<object> visited, MemberInfo member, Type expectedType)
     {
         if (obj == null)
-            return $"null ({expectedType.Name}){Environment.NewLine}";
+        {
+            sb.Append("null (");
+            sb.Append(expectedType.Name);
+            sb.Append(')');
+            sb.Append(Environment.NewLine);
+            return;
+        }
 
         var type = obj.GetType();
 
         if (member != null && _memberSerializers.TryGetValue(member, out var memberSerializer))
-            return memberSerializer(obj) + Environment.NewLine;
+        {
+            sb.Append(memberSerializer(obj));
+            sb.Append(Environment.NewLine);
+            return;
+        }
 
         if (_typeSerializers.TryGetValue(type, out var typeSerializer))
-            return typeSerializer(obj) + Environment.NewLine;
+        {
+            sb.Append(typeSerializer(obj));
+            sb.Append(Environment.NewLine);
+            return;
+        }
 
         if (IsFinalType(type))
         {
-            var text = FormatFinalValue(obj, type, member);
-            return text + Environment.NewLine;
+            sb.Append(FormatFinalValue(obj, type, member));
+            sb.Append(Environment.NewLine);
+            return;
         }
 
         if (!visited.Add(obj))
-            return "cyclic reference" + Environment.NewLine;
+        {
+            sb.Append("cyclic reference");
+            sb.Append(Environment.NewLine);
+            return;
+        }
+
+        sb.Append(type.Name);
+        sb.Append(Environment.NewLine);
 
         var indent = new string('\t', nestingLevel + 1);
-        var sb = new StringBuilder();
-
-        sb.AppendLine(type.Name);
 
         foreach (var memberInfo in GetSerializableMembers(type))
         {
@@ -135,13 +158,12 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
             var value = GetMemberValue(obj, memberInfo);
             var memberType = GetMemberType(memberInfo);
 
-            sb.Append(indent)
-              .Append(memberInfo.Name)
-              .Append(" = ")
-              .Append(PrintToString(value, nestingLevel + 1, visited, memberInfo, memberType));
-        }
+            sb.Append(indent);
+            sb.Append(memberInfo.Name);
+            sb.Append(" = ");
 
-        return sb.ToString();
+            AppendTo(sb, value!, nestingLevel + 1, visited, memberInfo, memberType);
+        }
     }
 
     private static Type GetMemberType(MemberInfo member)
