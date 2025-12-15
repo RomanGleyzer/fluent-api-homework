@@ -25,9 +25,11 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(serializer);
 
+        var normalizedType = NormalizeType(type);
+
         lock (_sync)
         {
-            _typeSerializers[type] = serializer;
+            _typeSerializers[normalizedType] = serializer;
         }
     }
 
@@ -47,9 +49,11 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(culture);
 
+        var normalizedType = NormalizeType(type);
+
         lock (_sync)
         {
-            _typeCultures[type] = culture;
+            _typeCultures[normalizedType] = culture;
         }
     }
 
@@ -78,17 +82,21 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
     {
         ArgumentNullException.ThrowIfNull(type);
 
+        var normalizedType = NormalizeType(type);
+
         lock (_sync)
         {
-            _typeStringTrims[type] = maxLength;
+            _typeStringTrims[normalizedType] = maxLength;
         }
     }
 
     public IPrintingConfig<TOwner> Excluding<TPropType>()
     {
+        var normalizedType = NormalizeType(typeof(TPropType));
+
         lock (_sync)
         {
-            _excludedTypes.Add(typeof(TPropType));
+            _excludedTypes.Add(normalizedType);
             return this;
         }
     }
@@ -109,7 +117,8 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
 
     public IPropertyPrintingConfig<TOwner, TProp> Printing<TProp>()
     {
-        return new PropertyPrintingConfig<TOwner, TProp>(this, typeof(TProp), null!);
+        var normalizedType = NormalizeType(typeof(TProp));
+        return new PropertyPrintingConfig<TOwner, TProp>(this, normalizedType, null!);
     }
 
     public IPropertyPrintingConfig<TOwner, TProp> Printing<TProp>(Expression<Func<TOwner, TProp>> memberSelector)
@@ -119,7 +128,8 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
         if (memberSelector.Body is not MemberExpression expression)
             throw new ArgumentException("Выражение должно указывать на поле или свойство.", nameof(memberSelector));
 
-        return new PropertyPrintingConfig<TOwner, TProp>(this, typeof(TProp), expression.Member);
+        var normalizedType = NormalizeType(typeof(TProp));
+        return new PropertyPrintingConfig<TOwner, TProp>(this, normalizedType, expression.Member);
     }
 
     public string PrintToString(TOwner obj)
@@ -146,7 +156,7 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
             return;
         }
 
-        var type = obj.GetType();
+        var type = NormalizeType(obj.GetType());
 
         if (member != null && _memberSerializers.TryGetValue(member, out var memberSerializer))
         {
@@ -176,12 +186,12 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
             return;
         }
 
-        sb.Append(type.Name);
+        sb.Append(obj.GetType().Name);
         sb.Append(Environment.NewLine);
 
         var indent = new string('\t', nestingLevel + 1);
 
-        foreach (var memberInfo in GetSerializableMembers(type))
+        foreach (var memberInfo in GetSerializableMembers(obj.GetType()))
         {
             if (ShouldSkipMember(memberInfo))
                 continue;
@@ -236,6 +246,8 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
 
     private static bool IsFinalType(Type type)
     {
+        type = NormalizeType(type);
+
         return type.IsPrimitive
             || type == typeof(string)
             || type == typeof(decimal)
@@ -246,6 +258,8 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
 
     private string FormatFinalValue(object obj, Type type, MemberInfo? member)
     {
+        type = NormalizeType(type);
+
         string result;
 
         CultureInfo? culture = null;
@@ -294,6 +308,15 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
             _ => null
         };
 
-        return type != null && _excludedTypes.Contains(type);
+        return type != null && _excludedTypes.Contains(NormalizeType(type));
+    }
+
+    private static Type NormalizeType(Type type)
+    {
+        var underlying = Nullable.GetUnderlyingType(type);
+        if (underlying != null)
+            return underlying;
+
+        return type;
     }
 }
