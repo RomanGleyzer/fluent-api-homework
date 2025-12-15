@@ -18,12 +18,17 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
     private readonly Dictionary<MemberInfo, int> _memberStringTrims = [];
     private readonly Dictionary<Type, int> _typeStringTrims = [];
 
+    private readonly object _sync = new();
+
     internal void SetTypeSerializer(Type type, Func<object, string> serializer)
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(serializer);
 
-        _typeSerializers[type] = serializer;
+        lock (_sync)
+        {
+            _typeSerializers[type] = serializer;
+        }
     }
 
     internal void SetMemberSerializer(MemberInfo member, Func<object, string> serializer)
@@ -31,7 +36,10 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
         ArgumentNullException.ThrowIfNull(member);
         ArgumentNullException.ThrowIfNull(serializer);
 
-        _memberSerializers[member] = serializer;
+        lock (_sync)
+        {
+            _memberSerializers[member] = serializer;
+        }
     }
 
     internal void SetTypeCulture(Type type, CultureInfo culture)
@@ -39,7 +47,10 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(culture);
 
-        _typeCultures[type] = culture;
+        lock (_sync)
+        {
+            _typeCultures[type] = culture;
+        }
     }
 
     internal void SetMemberCulture(MemberInfo member, CultureInfo culture)
@@ -47,25 +58,39 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
         ArgumentNullException.ThrowIfNull(member);
         ArgumentNullException.ThrowIfNull(culture);
 
-        _memberCultures[member] = culture;
+        lock (_sync)
+        {
+            _memberCultures[member] = culture;
+        }
     }
 
     internal void SetMemberStringTrim(MemberInfo member, int maxLength)
     {
         ArgumentNullException.ThrowIfNull(member);
-        _memberStringTrims[member] = maxLength;
+
+        lock (_sync)
+        {
+            _memberStringTrims[member] = maxLength;
+        }
     }
 
     internal void SetTypeStringTrim(Type type, int maxLength)
     {
         ArgumentNullException.ThrowIfNull(type);
-        _typeStringTrims[type] = maxLength;
+
+        lock (_sync)
+        {
+            _typeStringTrims[type] = maxLength;
+        }
     }
 
     public IPrintingConfig<TOwner> Excluding<TPropType>()
     {
-        _excludedTypes.Add(typeof(TPropType));
-        return this;
+        lock (_sync)
+        {
+            _excludedTypes.Add(typeof(TPropType));
+            return this;
+        }
     }
 
     public IPrintingConfig<TOwner> Excluding<TProp>(Expression<Func<TOwner, TProp>> memberSelector)
@@ -75,8 +100,11 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
         if (memberSelector.Body is not MemberExpression expression)
             throw new ArgumentException("Выражение должно указывать на поле или свойство.", nameof(memberSelector));
 
-        _excludedMembers.Add(expression.Member);
-        return this;
+        lock (_sync)
+        {
+            _excludedMembers.Add(expression.Member);
+            return this;
+        }
     }
 
     public IPropertyPrintingConfig<TOwner, TProp> Printing<TProp>()
@@ -96,12 +124,15 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
 
     public string PrintToString(TOwner obj)
     {
-        var visited = new HashSet<object>(new ReferenceEqualityComparer());
-        var sb = new StringBuilder();
+        lock (_sync)
+        {
+            var visited = new HashSet<object>(new ReferenceEqualityComparer());
+            var sb = new StringBuilder();
 
-        AppendTo(sb, obj!, 0, visited, null!, typeof(TOwner));
+            AppendTo(sb, obj!, 0, visited, null!, typeof(TOwner));
 
-        return sb.ToString();
+            return sb.ToString();
+        }
     }
 
     private void AppendTo(StringBuilder sb, object obj, int nestingLevel, HashSet<object> visited, MemberInfo member, Type expectedType)
