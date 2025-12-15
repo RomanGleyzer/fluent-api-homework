@@ -41,7 +41,7 @@ public class ObjectPrinterAcceptanceTests
     [Test]
     public void PrintToStringExtension_WithCustomConfiguration_ApplyCustomConfiguration()
     {
-        var result = _person.PrintToString(cfg => cfg.Printing(p => p.Name).TrimmedToLength(TrimmedLength).Printing(p => p.Height).Using(InvariantCulture));
+        var result = _person.PrintToString(cfg => cfg.Printing(p => p.Name).TrimmedToLength(TrimmedLength).Printing(p => p.Height).UsingCulture(InvariantCulture));
 
         result.Should().Contain("Mi");
         result.Should().Contain("1.76");
@@ -61,7 +61,7 @@ public class ObjectPrinterAcceptanceTests
     [Test]
     public void PrintToString_UsingCustomSerializerForType_ApplySerializerToAllMembersOfType()
     {
-        _printer = _printer.Printing<int>().Using(i => $"Целое число: {i}");
+        _printer = _printer.Printing<int>().UsingSerializer(i => $"Целое число: {i}");
 
         var result = _printer.PrintToString(_person);
 
@@ -71,7 +71,7 @@ public class ObjectPrinterAcceptanceTests
     [Test]
     public void PrintToString_SetCultureForNumericType_ApplyCultureToSerialization()
     {
-        _printer = _printer.Printing<double>().Using(InvariantCulture);
+        _printer = _printer.Printing<double>().UsingCulture(InvariantCulture);
 
         var result = _printer.PrintToString(_person);
 
@@ -81,7 +81,7 @@ public class ObjectPrinterAcceptanceTests
     [Test]
     public void PrintToString_CustomSerializerForProperty_ChangeOnlyThisProperty()
     {
-        _printer = _printer.Printing(p => p.Age).Using(a => $"Возраст человека: {a}");
+        _printer = _printer.Printing(p => p.Age).UsingSerializer(a => $"Возраст человека: {a}");
 
         var result = _printer.PrintToString(_person);
 

@@ -11,7 +11,7 @@ public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> parent
     private readonly Type _targetType = targetType;
     private readonly MemberInfo? _memberInfo = memberInfo;
 
-    public IPropertyPrintingConfig<TOwner, TProp> Using(Func<TProp, string> serializer)
+    public IPropertyPrintingConfig<TOwner, TProp> UsingSerializer(Func<TProp, string> serializer)
     {
         ArgumentNullException.ThrowIfNull(serializer);
 
@@ -25,7 +25,7 @@ public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> parent
         return this;
     }
 
-    public IPropertyPrintingConfig<TOwner, TProp> Using(CultureInfo culture)
+    public IPropertyPrintingConfig<TOwner, TProp> UsingCulture(CultureInfo culture)
     {
         ArgumentNullException.ThrowIfNull(culture);
 
