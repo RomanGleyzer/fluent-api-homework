@@ -39,6 +39,9 @@ public class PropertyPrintingConfig<TOwner, TProp>(PrintingConfig<TOwner> parent
 
     public IPropertyPrintingConfig<TOwner, TProp> TrimmedToLength(int maxLength)
     {
+        if (maxLength < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxLength), "Параметр maxLength должен быть неотрицательным.");
+
         if (_memberInfo != null)
             _parent.SetMemberStringTrim(_memberInfo, maxLength);
         else

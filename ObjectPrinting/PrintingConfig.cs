@@ -71,6 +71,8 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
     internal void SetMemberStringTrim(MemberInfo member, int maxLength)
     {
         ArgumentNullException.ThrowIfNull(member);
+        if (maxLength < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxLength), "Параметр maxLength должен быть неотрицательным.");
 
         lock (_sync)
         {
@@ -81,6 +83,8 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
     internal void SetTypeStringTrim(Type type, int maxLength)
     {
         ArgumentNullException.ThrowIfNull(type);
+        if (maxLength < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxLength), "Параметр maxLength должен быть неотрицательным.");
 
         var normalizedType = NormalizeType(type);
 
@@ -186,24 +190,31 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
             return;
         }
 
-        sb.Append(obj.GetType().Name);
-        sb.Append(Environment.NewLine);
-
-        var indent = new string('\t', nestingLevel + 1);
-
-        foreach (var memberInfo in GetSerializableMembers(obj.GetType()))
+        try
         {
-            if (ShouldSkipMember(memberInfo))
-                continue;
+            sb.Append(obj.GetType().Name);
+            sb.Append(Environment.NewLine);
 
-            var value = GetMemberValue(obj, memberInfo);
-            var memberType = GetMemberType(memberInfo);
+            var indent = new string('\t', nestingLevel + 1);
 
-            sb.Append(indent);
-            sb.Append(memberInfo.Name);
-            sb.Append(" = ");
+            foreach (var memberInfo in GetSerializableMembers(obj.GetType()))
+            {
+                if (ShouldSkipMember(memberInfo))
+                    continue;
 
-            AppendTo(sb, value!, nestingLevel + 1, visited, memberInfo, memberType);
+                var value = GetMemberValue(obj, memberInfo);
+                var memberType = GetMemberType(memberInfo);
+
+                sb.Append(indent);
+                sb.Append(memberInfo.Name);
+                sb.Append(" = ");
+
+                AppendTo(sb, value!, nestingLevel + 1, visited, memberInfo, memberType);
+            }
+        }
+        finally
+        {
+            visited.Remove(obj);
         }
     }
 
@@ -236,12 +247,23 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
 
     private static object? GetMemberValue(object obj, MemberInfo member)
     {
-        return member switch
+        try
         {
-            FieldInfo field => field.GetValue(obj),
-            PropertyInfo property => property.GetValue(obj),
-            _ => null
-        };
+            return member switch
+            {
+                FieldInfo field => field.GetValue(obj),
+                PropertyInfo property => property.GetValue(obj),
+                _ => null
+            };
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException != null)
+        {
+            return $"<exception: {ex.InnerException.GetType().Name}>";
+        }
+        catch (Exception ex)
+        {
+            return $"<exception: {ex.GetType().Name}>";
+        }
     }
 
     private static bool IsFinalType(Type type)
@@ -249,6 +271,7 @@ public class PrintingConfig<TOwner> : IPrintingConfig<TOwner>
         type = NormalizeType(type);
 
         return type.IsPrimitive
+            || type.IsEnum
             || type == typeof(string)
             || type == typeof(decimal)
             || type == typeof(DateTime)
